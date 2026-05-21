@@ -1,7 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { isAddress, parseEther, type Address } from "viem";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import {
+    useAccount,
+    useChainId,
+    useSwitchChain,
+    useWriteContract
+} from "wagmi";
 import { guardianAbi, somniaTestnet } from "@mosaic/sdk";
 import { config } from "@/lib/config";
 import { getReadClient } from "@/lib/client";
@@ -31,6 +36,8 @@ export default function ScannerPage() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { isConnected } = useAccount();
+    const chainId = useChainId();
+    const { switchChainAsync } = useSwitchChain();
     const { writeContractAsync } = useWriteContract();
 
     async function poll(addr: Address) {
@@ -79,6 +86,16 @@ export default function ScannerPage() {
         }
         setBusy(true);
         try {
+            // If the wallet's active EVM connection isn't on Somnia (some wallets
+            // — notably Phantom EVM — report the chain they were first connected on
+            // even after the user switches the UI), explicitly switch first.
+            if (chainId !== somniaTestnet.id) {
+                console.log(
+                    `[scan] switching wallet from chain ${chainId} -> ${somniaTestnet.id}`
+                );
+                await switchChainAsync({ chainId: somniaTestnet.id });
+            }
+
             // Guardian's pricePerInvocation = 0.05 STT by default
             const hash = await writeContractAsync({
                 chainId: somniaTestnet.id,
