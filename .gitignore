@@ -25,3 +25,5 @@ agents/logs/
 .vscode/
 .idea/
 .DS_Store
+contracts/out */
+contracts/cache */
