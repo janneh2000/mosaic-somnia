@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { isAddress, parseEther, type Address } from "viem";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { guardianAbi } from "@mosaic/sdk";
+import { guardianAbi, somniaTestnet } from "@mosaic/sdk";
 import { config } from "@/lib/config";
 import { getReadClient } from "@/lib/client";
 import { Wallet } from "@/components/Wallet";
@@ -79,6 +79,7 @@ export default function ScannerPage() {
         try {
             // Guardian's pricePerInvocation = 0.05 STT by default
             await writeContractAsync({
+                chainId: somniaTestnet.id,
                 address: config.addresses.guardianModule,
                 abi: guardianAbi,
                 functionName: "requestScan",

@@ -5,7 +5,8 @@ import { useAccount, useWriteContract } from "wagmi";
 import {
     AgentType,
     agentRegistryAbi,
-    encodeCapabilityAsDataUri
+    encodeCapabilityAsDataUri,
+    somniaTestnet
 } from "@mosaic/sdk";
 import { config } from "@/lib/config";
 import { Wallet } from "@/components/Wallet";
@@ -43,6 +44,7 @@ export default function RegisterPage() {
             };
             const uri = encodeCapabilityAsDataUri(schema);
             const hash = await writeContractAsync({
+                chainId: somniaTestnet.id,
                 address: config.addresses.agentRegistry,
                 abi: agentRegistryAbi,
                 functionName: "register",
