@@ -2,6 +2,7 @@ import {
     decodeAbiParameters,
     encodeAbiParameters,
     keccak256,
+    parseAbiItem,
     parseEventLogs,
     toBytes,
     type Address,
@@ -10,6 +11,11 @@ import {
 
 import { mosaicHubAbi } from "./abi";
 import { MosaicClient } from "./client";
+
+// Typed event reference so viem can narrow the `args` filter type.
+const INTENT_CREATED_EVENT = parseAbiItem(
+    "event IntentCreated(uint256 indexed invocationId, uint256 indexed agentId, address indexed caller, bytes payload, uint256 fee, uint256 nonce)"
+);
 
 export interface RunnerOptions {
     /** Mosaic client (must be initialized with the agent owner's private key). */
@@ -69,7 +75,7 @@ export class AgentRunner {
                 }
                 const logs = await client.publicClient.getLogs({
                     address: client.addresses.mosaicHub,
-                    event: mosaicHubAbi.find((x) => x.type === "event" && x.name === "IntentCreated") as never,
+                    event: INTENT_CREATED_EVENT,
                     args: { agentId },
                     fromBlock: cursor,
                     toBlock: head
