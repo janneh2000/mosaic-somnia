@@ -1,0 +1,27 @@
+# node
+node_modules/
+.next/
+dist/
+*.tsbuildinfo
+.npm/
+npm-debug.log*
+
+# foundry
+contracts/out/
+contracts/cache/
+contracts/lib/
+broadcast/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+agents/logs/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store

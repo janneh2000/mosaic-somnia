@@ -1,0 +1,23 @@
+{
+  "name": "@mosaic/agents",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "guardian": "tsx src/protocol-guardian.ts",
+    "summarizer": "tsx src/summarizer.ts",
+    "composer": "tsx src/composer.ts",
+    "register-demos": "tsx src/register-demos.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@mosaic/sdk": "file:../sdk",
+    "viem": "2.21.0"
+  },
+  "devDependencies": {
+    "tsx": "4.19.0",
+    "typescript": "5.5.4",
+    "@types/node": "22.5.0"
+  },
+  "engines": { "node": ">=20.0.0" }
+}

@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# Manual deploy on Somnia testnet.
+#
+# Why this exists instead of just `forge script`:
+#   Somnia's eth_estimateGas dramatically under-reports the gas a contract
+#   deployment actually needs (~5-10x lower than reality). forge script uses
+#   that estimate * a multiplier as the tx gas limit, so deploy txs OOG.
+#   forge create lets us set an explicit --gas-limit, which sidesteps the bug.
+#
+# Required env:
+#   DEPLOYER_PK   - hex private key with STT testnet funds
+#
+# Optional env (skip already-deployed contracts):
+#   AGENT_REGISTRY_ADDRESS
+#   REPUTATION_LEDGER_ADDRESS
+#   MOSAIC_HUB_ADDRESS
+#   GUARDIAN_MODULE_ADDRESS
+#   SOMNIA_RPC_URL  (default: testnet)
+#   SOMNIA_AGENTS   (default: testnet platform)
+#   GAS_LIMIT       (default: 30000000)
+set -eo pipefail
+# NOTE: intentionally NOT using `-u`; macOS bash 3.2 mishandles `local var="$1"`
+# under set -u, raising spurious "unbound variable" errors. Required env vars
+# are validated explicitly below.
+
+cd "$(dirname "$0")/../contracts"
+
+: "${DEPLOYER_PK:?missing DEPLOYER_PK env var}"
+SOMNIA_RPC_URL="${SOMNIA_RPC_URL:-https://api.infra.testnet.somnia.network/}"
+SOMNIA_AGENTS="${SOMNIA_AGENTS:-0x037Bb9C718F3f7fe5eCBDB0b600D607b52706776}"
+GAS_LIMIT="${GAS_LIMIT:-30000000}"
+DEPLOYER=$(cast wallet address --private-key "$DEPLOYER_PK")
+TREASURY="${TREASURY:-$DEPLOYER}"
+
+# ASCII-only logging to avoid terminal/locale issues.
+log()  { echo "[mosaic] $*" >&2; }
+fail() { echo "[mosaic][ERROR] $*" >&2; exit 1; }
+
+log "deployer:  $DEPLOYER"
+log "treasury:  $TREASURY"
+log "somnia:    $SOMNIA_AGENTS"
+log "rpc:       $SOMNIA_RPC_URL"
+log "gas limit: $GAS_LIMIT per tx"
+
+forge build >&2
+
+# Helper: deploy a contract via forge create, return its address on stdout.
+# ALL status messages go to stderr so that $(deploy ...) captures only the address.
+deploy() {
+    local name="$1"; shift
+    local path="$1"; shift
+    log "deploying $name ..."
+    local out
+    out=$(forge create \
+        --rpc-url "$SOMNIA_RPC_URL" \
+        --private-key "$DEPLOYER_PK" \
+        --legacy \
+        --gas-limit "$GAS_LIMIT" \
+        --broadcast \
+        "$path" \
+        --constructor-args "$@" 2>&1)
+    local addr
+    addr=$(echo "$out" | awk '/Deployed to:/ {print $3}')
+    if [ -z "$addr" ]; then
+        echo "$out" >&2
+        fail "$name deploy did not return an address"
+    fi
+    log "  $name = $addr"
+    # ONLY the address goes to stdout
+    printf '%s\n' "$addr"
+}
+
+# Helper: cast send + log
+send() {
+    local label="$1"; shift
+    log "$label ..."
+    cast send --rpc-url "$SOMNIA_RPC_URL" --private-key "$DEPLOYER_PK" \
+        --legacy --gas-limit 5000000 \
+        "$@" >&2
+    log "  ok"
+}
+
+# 1. AgentRegistry
+if [ -z "$AGENT_REGISTRY_ADDRESS" ]; then
+    AGENT_REGISTRY_ADDRESS=$(deploy AgentRegistry src/AgentRegistry.sol:AgentRegistry "$DEPLOYER")
+fi
+log "AGENT_REGISTRY_ADDRESS=$AGENT_REGISTRY_ADDRESS"
+
+# 2. ReputationLedger
+if [ -z "$REPUTATION_LEDGER_ADDRESS" ]; then
+    REPUTATION_LEDGER_ADDRESS=$(deploy ReputationLedger src/ReputationLedger.sol:ReputationLedger "$DEPLOYER")
+fi
+log "REPUTATION_LEDGER_ADDRESS=$REPUTATION_LEDGER_ADDRESS"
+
+# 3. MosaicHub
+if [ -z "$MOSAIC_HUB_ADDRESS" ]; then
+    MOSAIC_HUB_ADDRESS=$(deploy MosaicHub src/MosaicHub.sol:MosaicHub \
+        "$DEPLOYER" "$AGENT_REGISTRY_ADDRESS" "$REPUTATION_LEDGER_ADDRESS" \
+        "$SOMNIA_AGENTS" "$TREASURY")
+fi
+log "MOSAIC_HUB_ADDRESS=$MOSAIC_HUB_ADDRESS"
+
+# 4. Wire: ReputationLedger.setHub(MosaicHub)
+log "checking ReputationLedger.hub() ..."
+CURRENT_HUB=$(cast call --rpc-url "$SOMNIA_RPC_URL" \
+    "$REPUTATION_LEDGER_ADDRESS" "hub()(address)")
+CURRENT_HUB_LC=$(echo "$CURRENT_HUB" | tr '[:upper:]' '[:lower:]')
+TARGET_HUB_LC=$(echo "$MOSAIC_HUB_ADDRESS" | tr '[:upper:]' '[:lower:]')
+if [ "$CURRENT_HUB_LC" = "$TARGET_HUB_LC" ]; then
+    log "  hub already set"
+else
+    send "ReputationLedger.setHub" "$REPUTATION_LEDGER_ADDRESS" "setHub(address)" "$MOSAIC_HUB_ADDRESS"
+fi
+
+# 5. GuardianModule
+if [ -z "$GUARDIAN_MODULE_ADDRESS" ]; then
+    GUARDIAN_MODULE_ADDRESS=$(deploy GuardianModule src/GuardianModule.sol:GuardianModule \
+        "$MOSAIC_HUB_ADDRESS" "$AGENT_REGISTRY_ADDRESS")
+fi
+log "GUARDIAN_MODULE_ADDRESS=$GUARDIAN_MODULE_ADDRESS"
+
+# 6. Register Guardian as an agent in the marketplace
+log "checking Guardian agentId ..."
+CURRENT_AGENT_ID=$(cast call --rpc-url "$SOMNIA_RPC_URL" \
+    "$GUARDIAN_MODULE_ADDRESS" "guardianAgentId()(uint256)")
+if [ "$CURRENT_AGENT_ID" != "0" ]; then
+    log "  already registered (agent id $CURRENT_AGENT_ID)"
+    GUARDIAN_AGENT_ID="$CURRENT_AGENT_ID"
+else
+    METADATA='data:application/json,%7B%22name%22%3A%22ProtocolGuardian%22%2C%22kind%22%3A%22security%22%2C%22version%22%3A%221.0.0%22%7D'
+    send "GuardianModule.selfRegister" "$GUARDIAN_MODULE_ADDRESS" \
+        "selfRegister(uint256,string)" "50000000000000000" "$METADATA"
+    GUARDIAN_AGENT_ID=$(cast call --rpc-url "$SOMNIA_RPC_URL" \
+        "$GUARDIAN_MODULE_ADDRESS" "guardianAgentId()(uint256)")
+    log "  Guardian agent id = $GUARDIAN_AGENT_ID"
+fi
+
+cat <<EOF
+
+================================================================
+  Mosaic deployed to Somnia Shannon testnet (chain 50312)
+================================================================
+export AGENT_REGISTRY_ADDRESS=$AGENT_REGISTRY_ADDRESS
+export REPUTATION_LEDGER_ADDRESS=$REPUTATION_LEDGER_ADDRESS
+export MOSAIC_HUB_ADDRESS=$MOSAIC_HUB_ADDRESS
+export GUARDIAN_MODULE_ADDRESS=$GUARDIAN_MODULE_ADDRESS
+export GUARDIAN_AGENT_ID=$GUARDIAN_AGENT_ID
+
+explorer:
+  https://shannon-explorer.somnia.network/address/$MOSAIC_HUB_ADDRESS
+EOF

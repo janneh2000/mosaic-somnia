@@ -1,0 +1,28 @@
+{
+  "name": "@mosaic/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "TypeScript SDK for Mosaic: the agent marketplace on Somnia's Agentic L1",
+  "private": true,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./abi": "./src/abi.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "audit": "npm audit --omit=dev"
+  },
+  "dependencies": {
+    "viem": "2.21.0"
+  },
+  "devDependencies": {
+    "typescript": "5.5.4",
+    "@types/node": "22.5.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
