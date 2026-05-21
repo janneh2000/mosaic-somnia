@@ -29,6 +29,7 @@ export default function ScannerPage() {
     const [target, setTarget] = useState("");
     const [report, setReport] = useState<Report | null>(null);
     const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const { isConnected } = useAccount();
     const { writeContractAsync } = useWriteContract();
 
@@ -71,14 +72,15 @@ export default function ScannerPage() {
 
     async function onScan() {
         setReport(null);
+        setError(null);
         if (!isAddress(target)) {
-            alert("invalid address");
+            setError("invalid address");
             return;
         }
         setBusy(true);
         try {
             // Guardian's pricePerInvocation = 0.05 STT by default
-            await writeContractAsync({
+            const hash = await writeContractAsync({
                 chainId: somniaTestnet.id,
                 address: config.addresses.guardianModule,
                 abi: guardianAbi,
@@ -86,7 +88,14 @@ export default function ScannerPage() {
                 args: [target as Address],
                 value: parseEther("0.05")
             });
+            console.log("[scan] tx submitted:", hash);
             await poll(target as Address);
+        } catch (err) {
+            console.error("[scan] failed:", err);
+            const msg = (err as { shortMessage?: string; message?: string })?.shortMessage
+                ?? (err as Error)?.message
+                ?? String(err);
+            setError(msg);
         } finally {
             setBusy(false);
         }
@@ -134,6 +143,9 @@ export default function ScannerPage() {
                     <p className="mt-2 text-sm text-zinc-500">
                         connect your wallet to request a scan.
                     </p>
+                )}
+                {error && (
+                    <p className="mt-2 text-sm text-rose-400">{error}</p>
                 )}
             </div>
 
