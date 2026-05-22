@@ -9,6 +9,7 @@ import {
     somniaTestnet
 } from "@mosaic/sdk";
 import { config } from "@/lib/config";
+import { ensureSomniaChain } from "@/lib/ensureChain";
 import { Wallet } from "@/components/Wallet";
 
 export default function RegisterPage() {
@@ -43,8 +44,13 @@ export default function RegisterPage() {
                 ]
             };
             const uri = encodeCapabilityAsDataUri(schema);
+            const active = await ensureSomniaChain();
+            if (active !== somniaTestnet.id) {
+                throw new Error(
+                    `Wallet still on chain ${active} after switch. Open your wallet, switch to Somnia Testnet manually, then try again.`
+                );
+            }
             const hash = await writeContractAsync({
-                chainId: somniaTestnet.id,
                 address: config.addresses.agentRegistry,
                 abi: agentRegistryAbi,
                 functionName: "register",

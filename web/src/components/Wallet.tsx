@@ -1,13 +1,13 @@
 "use client";
-import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from "wagmi";
+import { useAccount, useConnect, useDisconnect, useChainId } from "wagmi";
 import { somniaTestnet } from "@mosaic/sdk";
+import { ensureSomniaChain } from "@/lib/ensureChain";
 
 export function Wallet() {
     const { address, isConnected } = useAccount();
     const { connect, connectors, isPending } = useConnect();
     const { disconnect } = useDisconnect();
     const chainId = useChainId();
-    const { switchChain } = useSwitchChain();
     const wrongChain = isConnected && chainId !== somniaTestnet.id;
 
     if (!isConnected) {
@@ -23,7 +23,17 @@ export function Wallet() {
     }
     if (wrongChain) {
         return (
-            <button className="btn" onClick={() => switchChain({ chainId: somniaTestnet.id })}>
+            <button
+                className="btn"
+                onClick={() =>
+                    ensureSomniaChain().catch((err) => {
+                        console.error("[wallet] switch failed:", err);
+                        alert(
+                            "Switch failed — open your wallet and switch to Somnia Testnet manually."
+                        );
+                    })
+                }
+            >
                 Switch to Somnia Testnet
             </button>
         );

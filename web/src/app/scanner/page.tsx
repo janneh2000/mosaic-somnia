@@ -1,15 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { isAddress, parseEther, type Address } from "viem";
-import {
-    useAccount,
-    useChainId,
-    useSwitchChain,
-    useWriteContract
-} from "wagmi";
+import { useAccount, useWriteContract } from "wagmi";
 import { guardianAbi, somniaTestnet } from "@mosaic/sdk";
 import { config } from "@/lib/config";
 import { getReadClient } from "@/lib/client";
+import { ensureSomniaChain } from "@/lib/ensureChain";
 import { Wallet } from "@/components/Wallet";
 
 interface Report {
@@ -36,8 +32,6 @@ export default function ScannerPage() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { isConnected } = useAccount();
-    const chainId = useChainId();
-    const { switchChainAsync } = useSwitchChain();
     const { writeContractAsync } = useWriteContract();
 
     async function poll(addr: Address) {
@@ -86,19 +80,14 @@ export default function ScannerPage() {
         }
         setBusy(true);
         try {
-            // If the wallet's active EVM connection isn't on Somnia (some wallets
-            // — notably Phantom EVM — report the chain they were first connected on
-            // even after the user switches the UI), explicitly switch first.
-            if (chainId !== somniaTestnet.id) {
-                console.log(
-                    `[scan] switching wallet from chain ${chainId} -> ${somniaTestnet.id}`
+            const active = await ensureSomniaChain();
+            if (active !== somniaTestnet.id) {
+                throw new Error(
+                    `Wallet still on chain ${active} after switch. Open your wallet, switch to Somnia Testnet manually, then try again.`
                 );
-                await switchChainAsync({ chainId: somniaTestnet.id });
             }
 
-            // Guardian's pricePerInvocation = 0.05 STT by default
             const hash = await writeContractAsync({
-                chainId: somniaTestnet.id,
                 address: config.addresses.guardianModule,
                 abi: guardianAbi,
                 functionName: "requestScan",
@@ -209,4 +198,3 @@ export default function ScannerPage() {
         </div>
     );
 }
-
