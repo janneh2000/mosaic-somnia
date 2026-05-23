@@ -1,3 +1,23 @@
+#!/usr/bin/env bash
+# Applies two fixes:
+#   1. patches sdk/src/runner.ts to chunk eth_getLogs at 500 blocks per call
+#      (fixes the "block range exceeds 1000" loop on Somnia's public RPC)
+#   2. writes agents/whoOwnsGuardian.ts so we can verify whether the runner's
+#      wallet matches the registered Guardian agent owner.
+set -euo pipefail
+
+REPO="${REPO:-$HOME/Desktop/mosaic-somnia/mosaic}"
+
+if [ ! -d "$REPO/sdk/src" ] || [ ! -d "$REPO/agents/src" ]; then
+    echo "✗ couldn't find $REPO/sdk and $REPO/agents"
+    echo "  Set REPO=/path/to/mosaic and re-run."
+    exit 1
+fi
+
+############################################
+# 1. patched sdk/src/runner.ts
+############################################
+cat > "$REPO/sdk/src/runner.ts" <<'TS'
 import {
     decodeAbiParameters,
     encodeAbiParameters,
@@ -163,3 +183,62 @@ export function encodeMethodCall(method: string, args: Hex): Hex {
         [method, args]
     );
 }
+TS
+
+############################################
+# 2. agents/whoOwnsGuardian.ts — wrapped in async main() so it works with CJS
+############################################
+cat > "$REPO/agents/src/whoOwnsGuardian.ts" <<'TS'
+import { createPublicClient, http, type Address } from "viem";
+import { agentRegistryAbi, somniaTestnet } from "@mosaic/sdk";
+
+async function main() {
+    const client = createPublicClient({
+        chain: somniaTestnet,
+        transport: http(process.env.SOMNIA_RPC_URL!)
+    });
+
+    const agentId = BigInt(process.env.GUARDIAN_AGENT_ID ?? "1");
+    const agent = (await client.readContract({
+        address: process.env.AGENT_REGISTRY_ADDRESS as Address,
+        abi: agentRegistryAbi,
+        functionName: "getAgent",
+        args: [agentId]
+    })) as { owner: Address; capabilityTag: string; active: boolean };
+
+    console.log("\n--- Guardian ownership check ---");
+    console.log("agent id queried:        ", agentId.toString());
+    console.log("on-chain owner:          ", agent.owner);
+    console.log("on-chain capability tag: ", agent.capabilityTag);
+    console.log("on-chain active:         ", agent.active);
+    console.log();
+    console.log("Compare 'on-chain owner' above against the wallet whose key");
+    console.log("you put into AGENT_PRIVATE_KEY in agents/.env. They MUST match");
+    console.log("for fulfillIntent to succeed.");
+}
+
+main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+});
+TS
+
+echo "✓ patched $REPO/sdk/src/runner.ts (eth_getLogs now chunked at 500 blocks)"
+echo "✓ wrote   $REPO/agents/src/whoOwnsGuardian.ts"
+echo
+echo "Next steps:"
+echo "  1. Find out who actually owns Guardian:"
+echo "       cd $REPO/agents"
+echo "       npx tsx --env-file=.env src/whoOwnsGuardian.ts"
+echo
+echo "  2. If the on-chain owner does NOT match the runner wallet, swap"
+echo "     AGENT_PRIVATE_KEY in agents/.env for the matching wallet's key,"
+echo "     then restart the three runners."
+echo
+echo "  3. Either way, the runner fix takes effect on next restart. Stop"
+echo "     each runner (Ctrl-C), then in each terminal:"
+echo "       cd $REPO/agents"
+echo "       set -a; source .env; set +a"
+echo "       npm run guardian       # terminal 1"
+echo "       npm run summarizer     # terminal 2"
+echo "       npm run composer       # terminal 3"

@@ -59,35 +59,6 @@ export const agentRegistryAbi = [
         outputs: [{ type: "uint256" }]
     },
     {
-        type: "function",
-        name: "update",
-        stateMutability: "nonpayable",
-        inputs: [
-            { name: "agentId", type: "uint256" },
-            { name: "pricePerInvocation", type: "uint256" },
-            { name: "metadataURI", type: "string" },
-            { name: "active", type: "bool" }
-        ],
-        outputs: []
-    },
-    {
-        type: "function",
-        name: "transferAgent",
-        stateMutability: "nonpayable",
-        inputs: [
-            { name: "agentId", type: "uint256" },
-            { name: "to", type: "address" }
-        ],
-        outputs: []
-    },
-    {
-        type: "function",
-        name: "exists",
-        stateMutability: "view",
-        inputs: [{ name: "agentId", type: "uint256" }],
-        outputs: [{ type: "bool" }]
-    },
-    {
         type: "event",
         name: "AgentRegistered",
         inputs: [
@@ -98,25 +69,6 @@ export const agentRegistryAbi = [
             { name: "pricePerInvocation", type: "uint256", indexed: false },
             { name: "capabilityTag", type: "string", indexed: false },
             { name: "metadataURI", type: "string", indexed: false }
-        ]
-    },
-    {
-        type: "event",
-        name: "AgentUpdated",
-        inputs: [
-            { name: "agentId", type: "uint256", indexed: true },
-            { name: "pricePerInvocation", type: "uint256", indexed: false },
-            { name: "metadataURI", type: "string", indexed: false },
-            { name: "active", type: "bool", indexed: false }
-        ]
-    },
-    {
-        type: "event",
-        name: "AgentTransferred",
-        inputs: [
-            { name: "agentId", type: "uint256", indexed: true },
-            { name: "from", type: "address", indexed: true },
-            { name: "to", type: "address", indexed: true }
         ]
     }
 ] as const;

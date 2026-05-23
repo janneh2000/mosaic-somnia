@@ -4,10 +4,10 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "guardian": "tsx src/protocol-guardian.ts",
-    "summarizer": "tsx src/summarizer.ts",
-    "composer": "tsx src/composer.ts",
-    "register-demos": "tsx src/register-demos.ts",
+    "guardian": "tsx --env-file=.env src/protocol-guardian.ts",
+    "summarizer": "tsx --env-file=.env src/summarizer.ts",
+    "composer": "tsx --env-file=.env src/composer.ts",
+    "register-demos": "tsx --env-file=.env src/register-demos.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

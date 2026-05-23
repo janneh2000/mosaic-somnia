@@ -133,10 +133,7 @@ if [ "$CURRENT_AGENT_ID" != "0" ]; then
     log "  already registered (agent id $CURRENT_AGENT_ID)"
     GUARDIAN_AGENT_ID="$CURRENT_AGENT_ID"
 else
-        # ProtocolGuardian capability schema. Keep in sync with the marketplace
-    # card copy on the web app (web/src/components/AgentCard.tsx reads the
-    # `description` field).
-    METADATA='data:application/json,%7B%22name%22%3A%22ProtocolGuardian%22%2C%22kind%22%3A%22security%22%2C%22version%22%3A%221.0.0%22%2C%22description%22%3A%22Mosaic%27s%20flagship%20security%20agent.%20Scans%20a%20deployed%20contract%20for%20risky%20opcodes%20%28SELFDESTRUCT%2C%20DELEGATECALL%29%20and%20combines%20on-chain%20heuristics%20with%20an%20off-chain%20runner%27s%20structured%20assessment.%22%7D'
+    METADATA='data:application/json,%7B%22name%22%3A%22ProtocolGuardian%22%2C%22kind%22%3A%22security%22%2C%22version%22%3A%221.0.0%22%7D'
     # Register Guardian AND transfer agent record ownership to the runner EOA
     # in a single tx, so the runner wallet can sign valid EIP-191 fulfillments.
     send "GuardianModule.selfRegisterAndTransfer" "$GUARDIAN_MODULE_ADDRESS" \
