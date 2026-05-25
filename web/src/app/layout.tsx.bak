@@ -27,9 +27,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                             <a href="/register" className="hover:text-emerald-400">
                                 Register
                             </a>
-                            <a href="/my-agents" className="hover:text-emerald-400">
-                                My agents
-                            </a>
                         </nav>
                     </header>
                     <main className="mx-auto max-w-5xl p-6">{children}</main>
