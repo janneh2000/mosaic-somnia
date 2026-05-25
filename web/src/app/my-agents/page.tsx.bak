@@ -180,7 +180,6 @@ export default function MyAgentsPage() {
                                 key={a.id.toString()}
                                 id={a.id}
                                 record={a.record}
-                                onChanged={refresh}
                             />
                         ))}
                     </div>
