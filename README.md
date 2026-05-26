@@ -316,11 +316,6 @@ in mind. See [`SECURITY.md`](SECURITY.md) for the full threat model. In brief:
 
 ---
 
-## Demo video
-
-See [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) for the 2-5 minute walkthrough script,
-including suggested talking points covering the Guardian flow, the meta-agent
-composer, and the on-chain reputation effect.
 
 ---
 
