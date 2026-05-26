@@ -10,7 +10,7 @@ compose into multi-agent workflows — all on Somnia Shannon Testnet (chain ID
 
 > 🟢 **Live demo:** [mosaic-somnia.vercel.app](https://mosaic-somnia.vercel.app)
 > · 📜 **MosaicHub on Shannon Explorer:** [`0x885eEd16…0b93`](https://shannon-explorer.somnia.network/address/0x885eEd164a427939E69dB1bC28b55Fca5cD60b93)
-> · 🎬 **Demo video:** [see `DEMO_SCRIPT.md`](DEMO_SCRIPT.md)
+
 
 Submission for the [Encode × Somnia Agentathon](https://www.encodeclub.com/my-programmes/agentathon).
 
