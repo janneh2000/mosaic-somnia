@@ -1,8 +1,9 @@
-.PHONY: setup build test deploy register run-agents web verify clean help
+.PHONY: setup doctor build test deploy register run-agents web verify clean help
 
 help:
 	@echo "Mosaic — common targets"
 	@echo "  make setup      → install foundry deps for contracts/"
+	@echo "  make doctor     → preflight: check env files + required values"
 	@echo "  make build      → forge build"
 	@echo "  make test       → forge test (unit tests, full suite)"
 	@echo "  make deploy     → deploy to Somnia testnet (set DEPLOYER_PK)"
@@ -16,6 +17,9 @@ setup:
 	./scripts/setup-foundry.sh
 	cd sdk && npm install --no-audit --no-fund
 	cd agents && npm install --no-audit --no-fund
+
+doctor:
+	./scripts/doctor.sh
 
 build:
 	cd contracts && forge build

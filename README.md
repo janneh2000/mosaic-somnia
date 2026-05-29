@@ -179,8 +179,20 @@ export GAS_LIMIT=60000000                           # MosaicHub needs the headro
 bash scripts/deploy-manual.sh
 ```
 
-Script prints the 4 contract addresses and the Guardian agent id. Copy them
-into `web/.env.local` (with `NEXT_PUBLIC_` prefix) and `agents/.env` (no prefix).
+Script prints the 4 contract addresses and the Guardian agent id. Copy the env
+templates and fill them in — `web/.env.local` (with `NEXT_PUBLIC_` prefix) and
+`agents/.env` (no prefix):
+
+```bash
+cp web/.env.example web/.env.local        # fill the 4 NEXT_PUBLIC_ addresses
+cp agents/.env.example agents/.env        # fill key + addresses + agent IDs
+```
+
+Then run a preflight check to confirm nothing is left blank or placeholder:
+
+```bash
+make doctor
+```
 
 ### Register the demo agents
 
