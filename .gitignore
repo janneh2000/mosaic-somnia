@@ -9,8 +9,9 @@ npm-debug.log*
 # foundry
 contracts/out/
 contracts/cache/
-contracts/lib/
 broadcast/
+# NOTE: contracts/lib/ is intentionally vendored (committed) so a plain
+# `git clone` builds with `forge test` and no submodule init step.
 
 # env / secrets
 .env
