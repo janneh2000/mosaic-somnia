@@ -284,7 +284,7 @@ contract MosaicExtraTest is Test {
         reputation.setHub(address(0));
     }
 
-    function test_reputation_emptyStatsReturnZero() public {
+    function test_reputation_emptyStatsReturnZero() public view {
         assertEq(reputation.successRateBps(123), 0);
         assertEq(reputation.averageLatencyMs(123), 0);
     }

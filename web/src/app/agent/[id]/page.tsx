@@ -11,6 +11,7 @@ import {
 import { useParams } from "next/navigation";
 import { Wallet } from "@/components/Wallet";
 import { EditAgentForm } from "@/components/EditAgentForm";
+import { InvokePanel } from "@/components/InvokePanel";
 import { getReadClient } from "@/lib/client";
 
 export default function AgentDetailPage() {
@@ -125,6 +126,10 @@ export default function AgentDetailPage() {
                     )}
                 </div>
             </div>
+
+            {record.active && (
+                <InvokePanel agentId={id} record={record} schema={schema} />
+            )}
 
             {schema && (
                 <div className="border rounded-xl p-5 bg-panel mt-6">
