@@ -183,7 +183,10 @@ export function InvokePanel({
                 value: record.pricePerInvocation
             });
 
-            const receipt = await client.publicClient.waitForTransactionReceipt({ hash: txHash });
+            const receipt = await withRetry(
+                () => client.publicClient.waitForTransactionReceipt({ hash: txHash }),
+                { tries: 5, delayMs: 1_500 }
+            );
             const intentLogs = parseEventLogs({
                 abi: mosaicHubAbi,
                 logs: receipt.logs,
