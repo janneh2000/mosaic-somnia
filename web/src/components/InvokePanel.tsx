@@ -16,6 +16,7 @@ import {
     InvocationStatus,
     mosaicHubAbi,
     somniaTestnet,
+    withRetry,
     type AgentCapabilitySchema,
     type AgentRecord,
     type CapabilityMethod
@@ -131,19 +132,23 @@ export function InvokePanel({
     async function fetchResult(invocationId: bigint, fromBlock: bigint) {
         const client = getReadClient();
         // Somnia caps eth_getLogs range; keep the window small (fulfillment lands
-        // within seconds of the invoke).
-        const logs = await client.publicClient.getLogs({
-            address: config.addresses.mosaicHub,
-            event: parseAbiItem(
-                "event InvocationFulfilled(uint256 indexed invocationId, uint256 indexed agentId, uint8 status, uint128 latencyMs)"
-            ),
-            args: { invocationId },
-            fromBlock,
-            toBlock: fromBlock + 900n
-        });
+        // within seconds of the invoke). Retry — the public RPC is rate-limited.
+        const logs = await withRetry(() =>
+            client.publicClient.getLogs({
+                address: config.addresses.mosaicHub,
+                event: parseAbiItem(
+                    "event InvocationFulfilled(uint256 indexed invocationId, uint256 indexed agentId, uint8 status, uint128 latencyMs)"
+                ),
+                args: { invocationId },
+                fromBlock,
+                toBlock: fromBlock + 900n
+            })
+        );
         if (logs.length === 0) return { fulfillTx: undefined, result: undefined };
         const fulfillTx = logs[0]!.transactionHash as Hex;
-        const tx = await client.publicClient.getTransaction({ hash: fulfillTx });
+        const tx = await withRetry(() =>
+            client.publicClient.getTransaction({ hash: fulfillTx })
+        );
         try {
             const { functionName, args: callArgs } = decodeFunctionData({
                 abi: mosaicHubAbi,
@@ -191,10 +196,19 @@ export function InvokePanel({
             const fromBlock = receipt.blockNumber;
             setState({ phase: "pending", invocationId, txHash });
 
-            // Poll the on-chain invocation status until it settles.
+            // Poll the on-chain invocation status until it settles. A transient
+            // RPC failure on any single poll must not abort the wait.
             for (let i = 0; i < 45; i++) {
                 await new Promise((r) => setTimeout(r, 2_000));
-                const inv = await client.getInvocation(invocationId);
+                let inv;
+                try {
+                    inv = await withRetry(() => client.getInvocation(invocationId), {
+                        tries: 3,
+                        delayMs: 600
+                    });
+                } catch {
+                    continue;
+                }
                 if (inv.status !== InvocationStatus.Pending) {
                     const latencyMs = Number(
                         (BigInt(Math.floor(Date.now() / 1000)) - inv.createdAt) * 1000n

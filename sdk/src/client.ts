@@ -1,11 +1,13 @@
 import {
     createPublicClient,
     createWalletClient,
+    decodeFunctionData,
     encodeAbiParameters,
     encodePacked,
     hashMessage,
     http,
     keccak256,
+    parseAbiItem,
     parseEventLogs,
     toBytes,
     type Account,
@@ -196,6 +198,129 @@ export class MosaicClient {
         throw new Error("invoke succeeded but no Mosaic invocation event was emitted");
     }
 
+    /**
+     * Wait for an invocation to settle, then reconstruct the agent's returned
+     * bytes. The result isn't stored on-chain — it's an argument to the runner's
+     * `fulfillIntent` call — so we locate the InvocationFulfilled log for this
+     * id and decode the result out of that transaction's calldata. Used by the
+     * Composer to read a sub-agent's output without a dedicated callback sink.
+     */
+    async awaitFulfillment(
+        invocationId: bigint,
+        opts: { pollMs?: number; tries?: number } = {}
+    ): Promise<{ status: InvocationStatus; result?: Hex; fulfillTx?: Hex }> {
+        const pollMs = opts.pollMs ?? 2_000;
+        const tries = opts.tries ?? 45;
+        const fulfilledEvent = parseAbiItem(
+            "event InvocationFulfilled(uint256 indexed invocationId, uint256 indexed agentId, uint8 status, uint128 latencyMs)"
+        );
+        for (let i = 0; i < tries; i++) {
+            // Somnia's public RPC is rate-limited and intermittently drops reads.
+            // A single transient failure must not abort the whole wait — retry the
+            // status read a few times, and if it still fails just poll again.
+            let inv: InvocationRecord;
+            try {
+                inv = await withRetry(() => this.getInvocation(invocationId), {
+                    tries: 3,
+                    delayMs: 600
+                });
+            } catch {
+                await new Promise((r) => setTimeout(r, pollMs));
+                continue;
+            }
+            if (inv.status !== InvocationStatus.Pending) {
+                if (inv.status !== InvocationStatus.Fulfilled) return { status: inv.status };
+                try {
+                    // Bounded window (Somnia caps eth_getLogs at 1000 blocks); the
+                    // fulfillment landed within the last poll cycle.
+                    const head = await withRetry(() => this.publicClient.getBlockNumber());
+                    const fromBlock = head > 900n ? head - 900n : 0n;
+                    const logs = await withRetry(() =>
+                        this.publicClient.getLogs({
+                            address: this.addresses.mosaicHub,
+                            event: fulfilledEvent,
+                            args: { invocationId },
+                            fromBlock,
+                            toBlock: head
+                        })
+                    );
+                    if (logs.length === 0) return { status: inv.status };
+                    const fulfillTx = logs[0]!.transactionHash as Hex;
+                    const tx = await withRetry(() =>
+                        this.publicClient.getTransaction({ hash: fulfillTx })
+                    );
+                    const { functionName, args } = decodeFunctionData({
+                        abi: mosaicHubAbi,
+                        data: tx.input
+                    });
+                    if (functionName === "fulfillIntent") {
+                        return {
+                            status: inv.status,
+                            result: (args as readonly unknown[])[1] as Hex,
+                            fulfillTx
+                        };
+                    }
+                    return { status: inv.status, fulfillTx };
+                } catch {
+                    // Settled, but we couldn't fetch/decode the result bytes.
+                    return { status: inv.status };
+                }
+            }
+            await new Promise((r) => setTimeout(r, pollMs));
+        }
+        return { status: InvocationStatus.Pending };
+    }
+
+    /**
+     * Invoke an EXTERNAL agent and block until it settles, returning the
+     * decoded result bytes plus both transaction hashes for verifiability.
+     */
+    async invokeAndAwait(
+        opts: {
+            agentId: bigint;
+            payload: Hex;
+            value: bigint;
+            callbackContract?: Address;
+            callbackSelector?: Hex;
+        },
+        awaitOpts: { pollMs?: number; tries?: number } = {}
+    ): Promise<{
+        invocationId: bigint;
+        invokeTx: Hex;
+        status: InvocationStatus;
+        result?: Hex;
+        fulfillTx?: Hex;
+    }> {
+        this._requireSigner();
+        // Deliver to our own EOA by default (a no-op low-level call); we read the
+        // result from the fulfillment calldata, so no callback contract is needed.
+        const callbackContract = opts.callbackContract ?? this.account!.address;
+        const callbackSelector = opts.callbackSelector ?? ("0x00000000" as Hex);
+        const invokeTx = await this.walletClient!.writeContract({
+            account: this.account!,
+            chain: this.publicClient.chain,
+            address: this.addresses.mosaicHub,
+            abi: mosaicHubAbi,
+            functionName: "invoke",
+            args: [opts.agentId, opts.payload, callbackContract, callbackSelector],
+            value: opts.value
+        });
+        const receipt = await withRetry(() =>
+            this.publicClient.waitForTransactionReceipt({ hash: invokeTx })
+        );
+        const intentLogs = parseEventLogs({
+            abi: mosaicHubAbi,
+            logs: receipt.logs,
+            eventName: "IntentCreated"
+        });
+        if (intentLogs.length === 0) {
+            throw new Error("invokeAndAwait: no IntentCreated event (EXTERNAL agents only)");
+        }
+        const invocationId = (intentLogs[0]!.args as { invocationId: bigint }).invocationId;
+        const settled = await this.awaitFulfillment(invocationId, awaitOpts);
+        return { invocationId, invokeTx, ...settled };
+    }
+
     async getInvocation(id: bigint): Promise<InvocationRecord> {
         const raw = await this.publicClient.readContract({
             address: this.addresses.mosaicHub,
@@ -296,6 +421,31 @@ export class MosaicClient {
             throw new Error("MosaicClient: privateKey is required for write operations");
         }
     }
+}
+
+/**
+ * Retry an async call with linear backoff. Built for Somnia's public RPC, which
+ * is rate-limited and occasionally drops reads under load. Keep the retried fn
+ * idempotent (reads only).
+ */
+export async function withRetry<T>(
+    fn: () => Promise<T>,
+    opts: { tries?: number; delayMs?: number } = {}
+): Promise<T> {
+    const tries = opts.tries ?? 4;
+    const delayMs = opts.delayMs ?? 800;
+    let lastErr: unknown;
+    for (let i = 0; i < tries; i++) {
+        try {
+            return await fn();
+        } catch (e) {
+            lastErr = e;
+            if (i < tries - 1) {
+                await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+            }
+        }
+    }
+    throw lastErr;
 }
 
 /** Build a `data:application/json,...` URI from a capability schema. */
