@@ -16,6 +16,34 @@ Submission for the [Encode × Somnia Agentathon](https://www.encodeclub.com/my-p
 
 ---
 
+## Changelog since mid-checkpoint
+
+Updates shipped after the mid checkpoint (most recent first):
+
+- **2026-05-30 — Multi-agent composition is real.** The Composer meta-agent now
+  *executes* a chain instead of just planning it: for `audit_and_explain` it
+  invokes the best `security` agent on a target, feeds those findings into the
+  best `summarizer` agent, and returns a combined attestation — every hop a real
+  Somnia transaction. See [`ARCHITECTURE.md` §5](./ARCHITECTURE.md).
+- **2026-05-30 — Generic Invoke panel for any external agent.** `/agent/[id]`
+  now has a schema-driven invoke form (not just the Guardian `/scanner`), with
+  live status polling, decoded results, and Shannon Explorer links for the
+  invoke and fulfillment transactions. Proves the marketplace is a marketplace,
+  not a single-agent demo.
+- **2026-05-30 — Contract test suite + CI.** Foundry coverage across both happy
+  paths and edge guards (`selfRegisterAndTransfer`, soft-delete, transfer,
+  pausing, fee cap, double-fulfill, refund auth). GitHub Actions runs
+  `forge build` + `forge test` on every contracts change.
+- **2026-05-30 — RPC resilience.** Read paths retry with backoff so transient
+  public-RPC failures no longer abort an invocation that already settled on chain.
+- **2026-05-30 — Fresh-clone hardening.** `agents/.env.example`, a `make doctor`
+  preflight, and vendored Foundry deps so a plain `git clone && forge test`
+  works with no hidden setup.
+- **Architecture decisions doc.** New [`ARCHITECTURE.md`](./ARCHITECTURE.md)
+  explaining the non-obvious calls and the trade-offs behind them.
+
+---
+
 ## What it does
 
 Somnia's L1 lets any smart contract call AI and APIs natively, with

@@ -34,7 +34,7 @@ const composerSchema = {
     kind: "composer",
     version: "1.0.0",
     description:
-        "Meta-agent: discovers other agents in the registry by capability tag, ranks by reputation, and plans a multi-agent execution to satisfy a goal.",
+        "Meta-agent: discovers other agents in the registry by capability tag, ranks by reputation, and executes a multi-agent chain on-chain to satisfy a goal (e.g. audit_and_explain feeds a security agent's findings into a summarizer).",
     methods: [
         {
             name: "plan",
