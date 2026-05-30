@@ -200,8 +200,10 @@ export function InvokePanel({
             setState({ phase: "pending", invocationId, txHash });
 
             // Poll the on-chain invocation status until it settles. A transient
-            // RPC failure on any single poll must not abort the wait.
-            for (let i = 0; i < 45; i++) {
+            // RPC failure on any single poll must not abort the wait. Meta-agents
+            // like the Composer chain several sub-invocations, so allow up to ~4
+            // minutes before giving up.
+            for (let i = 0; i < 120; i++) {
                 await new Promise((r) => setTimeout(r, 2_000));
                 let inv;
                 try {
@@ -247,7 +249,7 @@ export function InvokePanel({
                 }
             }
             throw new Error(
-                "no fulfillment after 90s — the agent's runner may be offline. The fee is reclaimable via refundExpired after 1 hour."
+                "still pending after ~4 min — the agent's runner may be offline or the public RPC is lagging. Your fee is safe and reclaimable via refundExpired after 1 hour."
             );
         } catch (err) {
             const msg =
@@ -348,7 +350,8 @@ export function InvokePanel({
                     >
                         invoke tx
                     </a>{" "}
-                    · waiting for the off-chain runner to fulfill…
+                    · waiting for the off-chain runner to fulfill (meta-agents that
+                    chain several agents can take a minute)…
                 </p>
             )}
 
