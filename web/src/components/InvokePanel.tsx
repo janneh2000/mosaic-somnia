@@ -220,10 +220,18 @@ export function InvokePanel({
                     let rawResult: Hex | undefined;
                     let decoded: string | undefined;
                     if (inv.status === InvocationStatus.Fulfilled) {
-                        const r = await fetchResult(invocationId, fromBlock);
-                        fulfillTx = r.fulfillTx;
-                        rawResult = r.result;
-                        decoded = decodeResult(method, r.result ?? "0x");
+                        // Result reconstruction (getLogs + getTransaction) is a
+                        // best-effort bonus. The invocation already settled, so a
+                        // flaky public RPC here must NOT turn a success into an
+                        // error — we still show "fulfilled" + the invoke tx link.
+                        try {
+                            const r = await fetchResult(invocationId, fromBlock);
+                            fulfillTx = r.fulfillTx;
+                            rawResult = r.result;
+                            decoded = decodeResult(method, r.result ?? "0x");
+                        } catch {
+                            /* keep success state; result just won't be shown */
+                        }
                     }
                     setState({
                         phase: "done",
@@ -378,6 +386,14 @@ export function InvokePanel({
                                 <div className="text-zinc-500 text-sm mt-4">result (raw)</div>
                                 <pre className="pre mt-1">{state.rawResult}</pre>
                             </>
+                        )}
+                    {state.decoded === undefined &&
+                        state.rawResult === undefined &&
+                        state.status === InvocationStatus.Fulfilled && (
+                            <p className="text-sm text-zinc-500 mt-3">
+                                Settled on-chain. Result preview unavailable (public RPC) — open
+                                the invoke tx on the explorer to verify.
+                            </p>
                         )}
 
                     <div className="mt-3 text-sm text-zinc-400 flex flex-wrap gap-3">
